@@ -87,7 +87,7 @@ function checkGitModifications() {
       return;
     }
 
-    const compareText = stdout.trim();
+    const compareText = stdout.replace(/ /g,''); // strip whitespaces
     let hasContentChanged = false;
     let hasScreenshotChanged = false;
 
@@ -106,13 +106,13 @@ function checkGitModifications() {
 (async () => {
   console.log("Loading page content");
 
-  // const text = await loadPageContent();
+  const text = await loadPageContent();
 
-  // console.log("Creating text file");
+  console.log("Creating text file");
 
-  // fs.writeFileSync('content.txt', text);
+  fs.writeFileSync('content.txt', text);
 
-  // console.log("Checking for git modifications");
+  console.log("Checking for git modifications");
 
   checkGitModifications();
 })();
