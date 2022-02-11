@@ -1,6 +1,6 @@
 const puppeteer = require('puppeteer');
 const fs  = require('fs');
-const { execSync } = require('child_process');
+const { exec } = require('child_process');
 
 async function loadPageContent() {
   const url = 'https://www.tesla.com/de_DE/modely/design?redirect=no';
@@ -30,7 +30,7 @@ async function loadPageContent() {
 }
 
 function checkGitModifications() {
-  execSync("git status", (error, stdout, stderr) => {
+  exec("git status", (error, stdout, stderr) => {
     if (error) {
         console.log(`error: ${error.message}`);
         return;
@@ -45,11 +45,13 @@ function checkGitModifications() {
 (async () => {
   console.log("Loading page content");
 
-  const text = await loadPageContent();
+  // const text = await loadPageContent();
 
-  console.log()
+  // console.log("Creating text file");
 
-  fs.writeFileSync('content.txt', text);
+  // fs.writeFileSync('content.txt', text);
+
+  // console.log("Checking for git modifications");
 
   checkGitModifications();
 })();
