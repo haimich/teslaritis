@@ -1,6 +1,9 @@
 const puppeteer = require('puppeteer');
 const fs  = require('fs');
 const { exec } = require('child_process');
+const nodemailer = require('nodemailer');
+const SendmailTransport = require('nodemailer/lib/sendmail-transport');
+require('dotenv').config();
 
 async function loadPageContent() {
   const url = 'https://www.tesla.com/de_DE/modely/design?redirect=no';
@@ -29,6 +32,45 @@ async function loadPageContent() {
   return extractedText;
 }
 
+function sendMail(hasContentChanged, hasScreenshotChanged) {
+  const sender = process.env.SENDER;
+  const receiver = process.env.RECEIVER;
+  const pw = process.env.PW;
+
+  let transporter = nodemailer.createTransport({
+    host: "smtp.web.de",
+    port: 587,
+    secure: false, // upgrade later with STARTTLS
+    auth: {
+      user: sender,
+      pass: pw,
+    },
+  });
+
+  let mailOptions = {
+    from: sender,
+    to: receiver,
+    subject: `Teslaritis update`,
+    text: `Howdy!
+
+There was an update on the Tesla site:
+
+* Text is ${hasContentChanged ? 'different' : 'same'}
+* Screenshot is ${hasScreenshotChanged ? 'different' : 'same'}
+
+Visit https://www.tesla.com/de_DE/modely/design?redirect=no now :)
+`,
+  };
+  
+  transporter.sendMail(mailOptions, function(error, info){
+    if (error) {
+      console.log(error);
+    } else {
+      console.log('Email sent: ' + info.response);
+    }
+  });
+}
+
 function checkGitModifications() {
   exec("git status", (error, stdout, stderr) => {
     if (error) {
@@ -42,8 +84,22 @@ function checkGitModifications() {
     console.log(`stdout: ${stdout}`);
 
     if (stdout.includes('working tree clean')) {
-      console.log("OK");
+      return;
     }
+
+    const compareText = stdout.trim();
+    let hasContentChanged = false;
+    let hasScreenshotChanged = false;
+
+    if (compareText.includes('modified:content.txt')) {
+      hasContentChanged = true;
+    }
+
+    if (compareText.includes('modified:screenshot.png')) {
+      hasScreenshotChanged = true;
+    }
+
+    sendMail(hasContentChanged, hasScreenshotChanged);
   });
 }
 
