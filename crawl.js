@@ -32,7 +32,7 @@ async function loadPageContent() {
   return extractedText;
 }
 
-function sendMail(hasContentChanged, hasScreenshotChanged) {
+function sendMail(diff, hasContentChanged, hasScreenshotChanged) {
   const sender = process.env.SENDER;
   const receiver = process.env.RECEIVER;
   const pw = process.env.PW;
@@ -60,6 +60,12 @@ There was an update on the Tesla site:
 
 Visit https://www.tesla.com/de_DE/modely/design?redirect=no now :)
 `,
+  attachments: [
+    {
+        filename: 'diff.txt',
+        content: diff,
+    },
+  ],
   };
   
   transporter.sendMail(mailOptions, function(error, info){
@@ -99,7 +105,18 @@ function checkGitModifications() {
       hasScreenshotChanged = true;
     }
 
-    sendMail(hasContentChanged, hasScreenshotChanged);
+    // find out git diff
+    exec("git diff", (error, stdout, stderr) => {
+      if (error) {
+          console.log(`error: ${error.message}`);
+          return;
+      } else if (stderr) {
+          console.log(`stderr: ${stderr}`);
+          return;
+      }
+
+      sendMail(stdout, hasContentChanged, hasScreenshotChanged);
+    });
   });
 }
 
