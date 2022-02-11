@@ -1,0 +1,16 @@
+{
+  "name": "teslaritis",
+  "version": "1.0.0",
+  "description": "",
+  "main": "crawl.js",
+  "dependencies": {
+    "puppeteer": "^13.3.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
