@@ -38,7 +38,12 @@ function checkGitModifications() {
         console.log(`stderr: ${stderr}`);
         return;
     }
+
     console.log(`stdout: ${stdout}`);
+
+    if (stdout.includes('working tree clean')) {
+      console.log("OK");
+    }
   });
 }
 
