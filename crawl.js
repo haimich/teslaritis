@@ -11,7 +11,7 @@ async function loadPageContent() {
   console.log("Opening " + url);
 
   await page.goto(url);
-  
+
   console.log("Wait for content to be available");
 
   await page.on('domcontentloaded');
@@ -34,8 +34,7 @@ function checkGitModifications() {
     if (error) {
         console.log(`error: ${error.message}`);
         return;
-    }
-    if (stderr) {
+    } else if (stderr) {
         console.log(`stderr: ${stderr}`);
         return;
     }
@@ -51,4 +50,6 @@ function checkGitModifications() {
   console.log()
 
   fs.writeFileSync('content.txt', text);
+
+  checkGitModifications();
 })();
