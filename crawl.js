@@ -5,6 +5,12 @@ const nodemailer = require('nodemailer');
 const SendmailTransport = require('nodemailer/lib/sendmail-transport');
 require('dotenv').config();
 
+const FILE_SCREENSHOT = 'screenshot.png';
+const FILE_SCREENSHOT_NEW = 'screenshot-new.png';
+
+const FILE_CONTENT = 'content.txt';
+const FILE_CONTENT_NEW = 'content-new.txt';
+
 async function loadPageContent() {
   const url = 'https://www.tesla.com/de_DE/modely/design?redirect=no';
 
@@ -30,14 +36,14 @@ async function loadPageContent() {
   
   console.log("Creating screenshot");
 
-  await page.screenshot({ path: 'screenshot.png', fullPage: true });
+  await page.screenshot({ path: FILE_SCREENSHOT_NEW, fullPage: true });
 
   await browser.close();
 
   return extractedText;
 }
 
-function sendMail(diff, hasContentChanged, hasScreenshotChanged) {
+function sendMail(hasContentChanged, hasScreenshotChanged) {
   const sender = process.env.SENDER;
   const receiver = process.env.RECEIVER;
   const pw = process.env.PW;
@@ -56,16 +62,17 @@ function sendMail(diff, hasContentChanged, hasScreenshotChanged) {
 
   if (hasContentChanged) {
     attachments.push({
-        filename: 'diff.txt',
-        content: diff,
+        filename: FILE_CONTENT,
+        content: FILE_CONTENT_NEW,
+        contentType: 'text/plain',
     });
   }
 
   if (hasScreenshotChanged) {
     attachments.push({
-      filename: 'screenshot.png',
-      content: fs.createReadStream('screenshot.png'),
-      contentType: 'image/png'
+      filename: FILE_SCREENSHOT,
+      content: fs.createReadStream(FILE_SCREENSHOT_NEW),
+      contentType: 'image/png',
     });
   }
 
@@ -84,18 +91,14 @@ Visit https://www.tesla.com/de_DE/modely/design?redirect=no now :)
 `,
   attachments,
   };
+
+  console.log('Sending mail');
   
-  transporter.sendMail(mailOptions, function(error, info){
-    if (error) {
-      console.log(error);
-    } else {
-      console.log('Email sent: ' + info.response);
-    }
-  });
+  return transporter.sendMail(mailOptions);
 }
 
-function checkGitModifications() {
-  exec("git status", (error, stdout, stderr) => {
+function checkModificationsAndSendMail() {
+  exec("ls -l | awk '{print $9, $5}'", (error, stdout, stderr) => {
     if (error) {
         console.log(`error: ${error.message}`);
         return;
@@ -104,36 +107,61 @@ function checkGitModifications() {
         return;
     }
 
-    console.log(`stdout: ${stdout}`);
-
-    if (stdout.includes('working tree clean')) {
-      return;
-    }
-
-    const compareText = stdout.replace(/ /g,''); // strip whitespaces
+    let files = stdout.split("\n");
+    
     let hasContentChanged = false;
     let hasScreenshotChanged = false;
 
-    if (compareText.includes('modified:content.txt')) {
+    let contentSizeBefore, contentSizeAfter;
+    let screenshotSizeBefore, screenshotSizeAfter;
+
+    for (let file of files) {
+      let stats = file.split(' ');
+      let fileName = stats[0];
+      let fileSize = stats[1];
+
+      switch (fileName) {
+        case FILE_SCREENSHOT: screenshotSizeBefore = fileSize; break;
+        case FILE_SCREENSHOT_NEW: screenshotSizeAfter = fileSize; break;
+        case FILE_CONTENT: contentSizeBefore = fileSize; break;
+        case FILE_CONTENT_NEW: contentSizeAfter = fileSize; break;
+      }
+    }
+
+    if (contentSizeBefore != contentSizeAfter) {
+      console.log('has content changed x');
       hasContentChanged = true;
     }
 
-    if (compareText.includes('modified:screenshot.png')) {
+    if (screenshotSizeBefore != screenshotSizeAfter) {
+      console.log('has screenshot changed x');
       hasScreenshotChanged = true;
     }
 
-    // find out git diff
-    exec("git diff", (error, stdout, stderr) => {
-      if (error) {
-          console.log(`error: ${error.message}`);
-          return;
-      } else if (stderr) {
-          console.log(`stderr: ${stderr}`);
-          return;
-      }
+    if (! hasContentChanged) {
+      console.log('Nothing has changed');
+      return;
+    }
 
-      sendMail(stdout, hasContentChanged, hasScreenshotChanged);
-    });
+    return sendMail(hasContentChanged, hasScreenshotChanged)
+      .then(() => {
+        console.log('Clean up files');
+
+        exec(`cp ${FILE_SCREENSHOT_NEW} ${FILE_SCREENSHOT} && cp ${FILE_CONTENT_NEW} ${FILE_CONTENT}`, (error, stdout, stderr) => {
+          if (error) {
+              console.log(`error: ${error.message}`);
+              return;
+          } else if (stderr) {
+              console.log(`stderr: ${stderr}`);
+              return;
+          }
+
+          console.log('Cleaned up files');
+        });
+      })
+      .catch(err => {
+        console.error(err);
+      });
   });
 }
 
@@ -144,10 +172,10 @@ function checkGitModifications() {
 
   console.log("Creating text file");
 
-  fs.writeFileSync('content.txt', text);
+  fs.writeFileSync(FILE_CONTENT_NEW, text);
 
-  console.log("Checking for git modifications");
+  console.log("Checking for modifications");
 
-  checkGitModifications();
+  checkModificationsAndSendMail();
 })();
 
