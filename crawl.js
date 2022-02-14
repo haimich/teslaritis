@@ -8,7 +8,12 @@ require('dotenv').config();
 async function loadPageContent() {
   const url = 'https://www.tesla.com/de_DE/modely/design?redirect=no';
 
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({
+    'args': [
+      '--no-sandbox',
+      '--disable-setuid-sandbox'
+    ]});
+
   const page = await browser.newPage();
 
   console.log("Opening " + url);
