@@ -47,6 +47,23 @@ function sendMail(diff, hasContentChanged, hasScreenshotChanged) {
     },
   });
 
+  let attachments = [];
+
+  if (hasContentChanged) {
+    attachments.push({
+        filename: 'diff.txt',
+        content: diff,
+    });
+  }
+
+  if (hasScreenshotChanged) {
+    attachments.push({
+      filename: 'screenshot.png',
+      content: fs.createReadStream('screenshot.png'),
+      contentType: 'image/png'
+    });
+  }
+
   let mailOptions = {
     from: sender,
     to: receiver,
@@ -60,12 +77,7 @@ There was an update on the Tesla site:
 
 Visit https://www.tesla.com/de_DE/modely/design?redirect=no now :)
 `,
-  attachments: [
-    {
-        filename: 'diff.txt',
-        content: diff,
-    },
-  ],
+  attachments,
   };
   
   transporter.sendMail(mailOptions, function(error, info){
