@@ -1,7 +1,9 @@
 const puppeteer = require('puppeteer');
-const fs  = require('fs');
-const { exec } = require('child_process');
 const nodemailer = require('nodemailer');
+const util = require('util');
+const process = require('process');
+const exec = util.promisify(require('child_process').exec);
+const fs  = require('fs');
 const SendmailTransport = require('nodemailer/lib/sendmail-transport');
 require('dotenv').config();
 
@@ -41,7 +43,7 @@ async function loadPageContent() {
   return extractedText;
 }
 
-function sendMail(hasContentChanged, hasScreenshotChanged) {
+function sendMail(modifications) {
   const sender = process.env.SENDER;
   const receiver = process.env.RECEIVER;
   const pw = process.env.PW;
@@ -58,15 +60,15 @@ function sendMail(hasContentChanged, hasScreenshotChanged) {
 
   let attachments = [];
 
-  if (hasContentChanged) {
+  if (modifications.hasContentChanged) {
     attachments.push({
         filename: FILE_CONTENT,
-        content: FILE_CONTENT_NEW,
+        content: fs.createReadStream(FILE_CONTENT_NEW),
         contentType: 'text/plain',
     });
   }
 
-  if (hasScreenshotChanged) {
+  if (modifications.hasScreenshotChanged) {
     attachments.push({
       filename: FILE_SCREENSHOT,
       content: fs.createReadStream(FILE_SCREENSHOT_NEW),
@@ -82,98 +84,103 @@ function sendMail(hasContentChanged, hasScreenshotChanged) {
 
 There was an update on the Tesla site:
 
-* Text is ${hasContentChanged ? 'different' : 'same'}
-* Screenshot is ${hasScreenshotChanged ? 'different' : 'same'}
+* Text is ${modifications.hasContentChanged ? 'different' : 'same'}
+* Screenshot is ${modifications.hasScreenshotChanged ? 'different' : 'same'}
 
 Visit https://www.tesla.com/de_DE/modely/design?redirect=no now :)
 `,
   attachments,
   };
-
-  console.log('Sending mail');
   
   return transporter.sendMail(mailOptions);
 }
 
-function checkModificationsAndSendMail() {
-  exec("ls -l | awk '{print $9, $5}'", (error, stdout, stderr) => {
-    if (error) {
-        console.log(`error: ${error.message}`);
-        return;
-    } else if (stderr) {
-        console.log(`stderr: ${stderr}`);
-        return;
-    }
-
-    let files = stdout.split("\n");
-    
-    let hasContentChanged = false;
-    let hasScreenshotChanged = false;
-
-    let contentSizeBefore, contentSizeAfter;
-    let screenshotSizeBefore, screenshotSizeAfter;
-
-    for (let file of files) {
-      let stats = file.split(' ');
-      let fileName = stats[0];
-      let fileSize = stats[1];
-
-      switch (fileName) {
-        case FILE_SCREENSHOT: screenshotSizeBefore = fileSize; break;
-        case FILE_SCREENSHOT_NEW: screenshotSizeAfter = fileSize; break;
-        case FILE_CONTENT: contentSizeBefore = fileSize; break;
-        case FILE_CONTENT_NEW: contentSizeAfter = fileSize; break;
+function checkModifications() {
+  return exec("ls -l | awk '{print $9, $5}'")
+    .then(result => {
+      if (result.stderr) {
+        console.log(`stderr: ${result.stderr}`);
+        process.exit(1);
       }
-    }
 
-    if (contentSizeBefore != contentSizeAfter) {
-      console.log('has content changed x');
-      hasContentChanged = true;
-    }
+      let files = result.stdout.split("\n");
+      
+      let hasContentChanged = false;
+      let hasScreenshotChanged = false;
 
-    if (screenshotSizeBefore != screenshotSizeAfter) {
-      console.log('has screenshot changed x');
-      hasScreenshotChanged = true;
-    }
+      let contentSizeBefore, contentSizeAfter;
+      let screenshotSizeBefore, screenshotSizeAfter;
 
-    if (! hasContentChanged) {
-      console.log('Nothing has changed');
-      return;
-    }
+      for (let file of files) {
+        let stats = file.split(' ');
+        let fileName = stats[0];
+        let fileSize = stats[1];
 
-    return sendMail(hasContentChanged, hasScreenshotChanged)
-      .then(() => {
-        console.log('Clean up files');
+        switch (fileName) {
+          case FILE_SCREENSHOT: screenshotSizeBefore = fileSize; break;
+          case FILE_SCREENSHOT_NEW: screenshotSizeAfter = fileSize; break;
+          case FILE_CONTENT: contentSizeBefore = fileSize; break;
+          case FILE_CONTENT_NEW: contentSizeAfter = fileSize; break;
+        }
+      }
 
-        exec(`cp ${FILE_SCREENSHOT_NEW} ${FILE_SCREENSHOT} && cp ${FILE_CONTENT_NEW} ${FILE_CONTENT}`, (error, stdout, stderr) => {
-          if (error) {
-              console.log(`error: ${error.message}`);
-              return;
-          } else if (stderr) {
-              console.log(`stderr: ${stderr}`);
-              return;
-          }
+      if (contentSizeBefore != contentSizeAfter) {
+        console.log('has content changed x');
+        hasContentChanged = true;
+      }
 
-          console.log('Cleaned up files');
-        });
-      })
-      .catch(err => {
-        console.error(err);
-      });
-  });
+      if (screenshotSizeBefore != screenshotSizeAfter) {
+        console.log('has screenshot changed x');
+        hasScreenshotChanged = true;
+      }
+
+      return {
+        hasContentChanged, hasScreenshotChanged
+      };
+    });
 }
 
-(async () => {
-  console.log("Loading page content");
+function generateDiff() {
+  return exec(`diff -u ${FILE_CONTENT} ${FILE_CONTENT_NEW}`);
+}
 
-  const text = await loadPageContent();
+function storeFile(filename, content) {
+  fs.writeFileSync(filename, content);
+}
 
-  console.log("Creating text file");
+function cleanupFiles() {
+  return exec(`cp ${FILE_SCREENSHOT_NEW} ${FILE_SCREENSHOT} && cp ${FILE_CONTENT_NEW} ${FILE_CONTENT}`);
+}
 
-  fs.writeFileSync(FILE_CONTENT_NEW, text);
+async function run() {
+  try {
+    console.log("Loading page content");
+  
+    const text = await loadPageContent();
+  
+    console.log("Creating content-new file");
+  
+    storeFile(FILE_CONTENT_NEW, text);
+  
+    console.log("Checking for modifications");
+  
+    const modifications = await checkModifications();
 
-  console.log("Checking for modifications");
+    if (! modifications.hasContentChanged) {
+      console.log('Content has not changed');
+      process.exit(0);
+    }
+  
+    console.log('Sending mail');
+  
+    await sendMail(modifications);
+  
+    console.log('Cleaning up files');
+  
+    await cleanupFiles();
+  } catch (err) {
+    console.error(err);
+  }
+}
 
-  checkModificationsAndSendMail();
-})();
-
+run();
