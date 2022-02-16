@@ -6,6 +6,8 @@ const exec = util.promisify(require('child_process').exec);
 const fs  = require('fs');
 const SendmailTransport = require('nodemailer/lib/sendmail-transport');
 require('dotenv').config();
+const TextFileDiff = require('text-file-diff');
+const diff = new TextFileDiff.default();
 
 const FILE_SCREENSHOT = 'screenshot.png';
 const FILE_SCREENSHOT_NEW = 'screenshot-new.png';
@@ -43,7 +45,7 @@ async function loadPageContent() {
   return extractedText;
 }
 
-function sendMail(modifications) {
+function sendMail(modifications, diffResult) {
   const sender = process.env.SENDER;
   const receiver = process.env.RECEIVER;
   const pw = process.env.PW;
@@ -73,6 +75,14 @@ function sendMail(modifications) {
       filename: FILE_SCREENSHOT,
       content: fs.createReadStream(FILE_SCREENSHOT_NEW),
       contentType: 'image/png',
+    });
+  }
+
+  if (diffResult != null && diffResult !== '') {
+    attachments.push({
+      filename: 'diff.txt',
+      content: diffResult,
+      contentType: 'text/plain',
     });
   }
 
@@ -141,7 +151,33 @@ function checkModifications() {
 }
 
 function generateDiff() {
-  return exec(`diff -u ${FILE_CONTENT} ${FILE_CONTENT_NEW}`);
+  return new Promise((resolve, reject) => {
+    let diffInfo = '';
+
+    diff.on('-', line => {
+      if (line == null || line === '') {
+        return;
+      }
+
+      // when a line is in file1 but not in file2
+      diffInfo += '- ' + line + '\n';
+    });
+
+    diff.on('+', line => {
+      if (line == null || line === '') {
+        return;
+      }
+
+      // when a line is in file2 but not in file1
+      diffInfo += '+ ' + line + '\n';;
+    });
+
+    // run the diff
+    diff.diff(FILE_CONTENT, FILE_CONTENT_NEW);
+
+    // as there is no way of knowing when the diff is done we wait for a certain amount of time
+    setTimeout(() => resolve(diffInfo), 1000);
+  });
 }
 
 function storeFile(filename, content) {
@@ -170,10 +206,12 @@ async function run() {
       console.log('Content has not changed');
       process.exit(0);
     }
+
+    let diffResult = await generateDiff();
   
     console.log('Sending mail');
   
-    await sendMail(modifications);
+    await sendMail(modifications, diffResult);
   
     console.log('Cleaning up files');
   
