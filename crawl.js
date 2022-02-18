@@ -31,8 +31,8 @@ async function loadPageContent() {
     .on('console', message =>
       console.log(`${message.type().substr(0, 3).toUpperCase()} ${message.text()}`))
     .on('pageerror', ({ message }) => console.log(message))
-    .on('response', response =>
-      console.log(`${response.status()} ${response.url()}`))
+    // .on('response', response =>
+    //   console.log(`${response.status()} ${response.url()}`))
     .on('requestfailed', request =>
       console.log(`${request.failure().errorText} ${request.url()}`))
 
@@ -232,7 +232,7 @@ async function run() {
       await cleanupFiles();
 
       console.log('Going to sleep');
-      sleep(1000 * 60 * 60);
+      await sleep(1000 * 60 * 60);
     }
   } catch (err) {
     console.error(err);
