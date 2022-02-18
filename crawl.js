@@ -32,7 +32,7 @@ async function loadPageContent() {
 
   console.log("Wait for content to be available");
 
-  await page.waitForTimeout(4000);
+  await page.waitForTimeout(8000);
 
   const extractedText = await page.$eval('*', (el) => el.innerText);
   
