@@ -42,7 +42,7 @@ async function loadPageContent() {
 
   console.log("Wait for content to be available");
 
-  await page.waitForTimeout(8000);
+  await page.waitForTimeout(6000);
 
   const extractedText = await page.$eval('*', (el) => el.innerText);
   
@@ -198,34 +198,42 @@ function cleanupFiles() {
   return exec(`cp ${FILE_SCREENSHOT_NEW} ${FILE_SCREENSHOT} && cp ${FILE_CONTENT_NEW} ${FILE_CONTENT}`);
 }
 
+function sleep(timeInMs) {
+  return new Promise((resolve, reject) => {
+    setTimeout(resolve, timeInMs);
+  });
+}
+
 async function run() {
   try {
-    console.log("Loading page content");
-  
-    const text = await loadPageContent();
-  
-    console.log("Creating content-new file");
-  
-    storeFile(FILE_CONTENT_NEW, text);
-  
-    console.log("Checking for modifications");
-  
-    const modifications = await checkModifications();
+    while (true) {
+      console.log("Loading page content");
+    
+      const text = await loadPageContent();
+    
+      console.log("Creating content-new file");
+    
+      storeFile(FILE_CONTENT_NEW, text);
+    
+      console.log("Checking for modifications");
+    
+      const modifications = await checkModifications();
 
-    if (! modifications.hasContentChanged) {
-      console.log('Content has not changed');
-      process.exit(0);
+      if (modifications.hasContentChanged) {
+        let diffResult = await generateDiff();
+      
+        console.log('Sending mail');
+      
+        await sendMail(modifications, diffResult);
+      
+      }
+      
+      console.log('Cleaning up files');
+      await cleanupFiles();
+
+      console.log('Going to sleep');
+      sleep(1000 * 60 * 60);
     }
-
-    let diffResult = await generateDiff();
-  
-    console.log('Sending mail');
-  
-    await sendMail(modifications, diffResult);
-  
-    console.log('Cleaning up files');
-  
-    await cleanupFiles();
   } catch (err) {
     console.error(err);
   }
