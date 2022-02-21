@@ -9,6 +9,8 @@ require('dotenv').config();
 const TextFileDiff = require('text-file-diff');
 const diff = new TextFileDiff.default();
 
+const CRAWL_URL = 'https://www.tesla.com/de_DE/modely/design?redirect=no';
+
 const FILE_SCREENSHOT = 'screenshot.png';
 const FILE_SCREENSHOT_NEW = 'screenshot-new.png';
 
@@ -16,7 +18,7 @@ const FILE_CONTENT = 'content.txt';
 const FILE_CONTENT_NEW = 'content-new.txt';
 
 async function loadPageContent() {
-  const url = 'https://www.tesla.com/de_DE/modely/design?redirect=no';
+  const url = CRAWL_URL;
 
   const browser = await puppeteer.launch({
     'args': [
@@ -29,12 +31,16 @@ async function loadPageContent() {
   // logging
   page
     .on('console', message =>
-      console.log(`${message.type().substr(0, 3).toUpperCase()} ${message.text()}`))
+      console.log(`${message.type().substr(0, 4).toUpperCase()} ${message.text()}`))
     .on('pageerror', ({ message }) => console.log(message))
-    // .on('response', response =>
-    //   console.log(`${response.status()} ${response.url()}`))
     .on('requestfailed', request =>
       console.log(`${request.failure().errorText} ${request.url()}`))
+    .on('response', response => {
+      if (response.status === 403) {
+        console.log(`${response.status()} ${response.url()}`);
+        throw new Error('Got access denied');
+      }
+    })
 
   console.log("Opening " + url);
 
@@ -205,8 +211,8 @@ function sleep(timeInMs) {
 }
 
 async function run() {
-  try {
-    while (true) {
+  while (true) {
+    try {
       console.log("Loading page content");
     
       const text = await loadPageContent();
@@ -233,9 +239,9 @@ async function run() {
 
       console.log('Going to sleep');
       await sleep(1000 * 60 * 60);
+    } catch (err) {
+      console.error(err);
     }
-  } catch (err) {
-    console.error(err);
   }
 }
 
