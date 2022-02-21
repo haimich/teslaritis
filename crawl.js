@@ -17,6 +17,17 @@ const FILE_SCREENSHOT_NEW = 'screenshot-new.png';
 const FILE_CONTENT = 'content.txt';
 const FILE_CONTENT_NEW = 'content-new.txt';
 
+// we need a web server or Heroku will stop our process
+const http = require('http');
+const requestListener = function (req, res) {
+  res.writeHead(200);
+  res.end("Server is running");
+};
+const server = http.createServer(requestListener);
+server.listen(process.env.PORT, '0.0.0.0', () => {
+    console.log(`Server is running on http://0.0.0.0:${process.env.PORT}`);
+});
+
 async function loadPageContent() {
   const url = CRAWL_URL;
 
