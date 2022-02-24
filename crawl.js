@@ -248,8 +248,8 @@ async function run() {
       console.log('Cleaning up files');
       await cleanupFiles();
 
-      console.log('Going to sleep');
-      await sleep(1000 * 60 * 60);
+      console.log('Going to sleep for 1 hour');
+      await sleep(1000 * 60 * 60); // 1 hour
     } catch (err) {
       console.error(err);
     }
