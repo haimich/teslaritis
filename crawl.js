@@ -41,16 +41,16 @@ async function loadPageContent() {
 
   // logging
   page
-    .on('console', message =>
-      console.log(`${message.type().substr(0, 4).toUpperCase()} ${message.text()}`))
+    .on('console', message => {
+      const errorLevel = message.type().substr(0, 4).toUpperCase();
+      console.log(`${errorLevel} ${message.text()}`)
+    })
     .on('pageerror', ({ message }) => console.log(message))
-    .on('requestfailed', request =>
-      console.log(`${request.failure().errorText} ${request.url()}`))
+    .on('requestfailed', request => {
+      console.log(`${request.failure().errorText} ${request.url()}`);
+    })
     .on('response', response => {
-      if (response.status === 403) {
-        console.log(`${response.status()} ${response.url()}`);
-        throw new Error('Got access denied');
-      }
+      console.log(`${response.status()} ${response.url()}`);
     })
 
   console.log("Opening " + url);
@@ -62,6 +62,10 @@ async function loadPageContent() {
   await page.waitForTimeout(6000);
 
   const extractedText = await page.$eval('*', (el) => el.innerText);
+
+  if (extractedText.includes("Access Denied")) {
+    throw new Error("Access denied");
+  }
   
   console.log("Creating screenshot");
 
@@ -247,12 +251,12 @@ async function run() {
       
       console.log('Cleaning up files');
       await cleanupFiles();
-
-      console.log('Going to sleep for 1 hour');
-      await sleep(1000 * 60 * 60); // 1 hour
     } catch (err) {
       console.error(err);
     }
+
+    console.log('Going to sleep for 1 hour\n\n');
+    await sleep(1000 * 60 * 60); // 1 hour
   }
 }
 
