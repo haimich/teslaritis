@@ -6,7 +6,7 @@ You need to create a `.env` file with the following values:
 
 ```bash
 PORT=9090
-SENDER=sender@email.com
-RECEIVER=receiver@email.com
+SENDER="sender@email.com"
+RECEIVER="receiver@email.com"
 PW=EMAILPW
 ```
